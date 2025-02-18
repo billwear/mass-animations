@@ -1,0 +1,348 @@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAAS</title>
+    <link rel="stylesheet" href="/examples/assets/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <script type="importmap">
+        {
+          "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+          }
+        }
+      </script>
+</head>
+<body>
+    <!-- Slider to control the pulse -->
+    <div class="slider-container">
+        <input id="slider" type="range" min="0" max="100" value="0" style="width: 100%;">
+        <button id="refreshButton">
+            <i class="fas fa-sync-alt"></i></button>
+    </div>
+
+    <script type="module">
+        import { CSS2DRenderer,CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        // Set up scene, camera, renderer
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf2f2f2);  // Ghostly light gray background color
+
+        const camera = new THREE.PerspectiveCamera(88, window.innerWidth / window.innerHeight, 0.1, 2000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+
+
+        // Utility to create text label as a sprite
+        function createTextSprite(message, x, y, z, widthFactor = 1.0) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 500;
+            canvas.height = 200;
+
+            const context = canvas.getContext('2d');
+            context.font = 'bold 48px Arial';  // Normal text size
+            context.fillStyle = 'black';  // Black text color
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(message, canvas.width / 2, canvas.height / 2);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+            const sprite = new THREE.Sprite(spriteMaterial);
+
+            // Scale sprite width according to the width factor (for centering over the box width)
+            sprite.scale.set(widthFactor, 2.0, 2);  // Proportional height for normal text appearance
+            sprite.position.set(x, y, z);
+            scene.add(sprite);
+        }
+        //Add CSS3DRenderer for text
+        const cssRenderer = new CSS2DRenderer();
+        cssRenderer.setSize(window.innerWidth, window.innerHeight);
+        cssRenderer.domElement.style.position = 'absolute';
+        cssRenderer.domElement.style.top = '0px';
+        cssRenderer.domElement.style.pointerEvents = 'none';
+        document.body.appendChild(cssRenderer.domElement);
+        
+        //Use this text for smaller fontsize
+        function createSmallText(label,x,y,z,widthFactor = 1.0){
+            
+            const labelDiv =  document.createElement('div');
+            labelDiv.style.height = `${widthFactor>5? widthFactor*50 : widthFactor*20}px`;
+            labelDiv.className = 'label';
+            labelDiv.style.backgroundColor = 'transparent';
+            labelDiv.style.color = 'black';
+            labelDiv.style.padding = '1px 8px';
+            labelDiv.style.borderRadius = '4px';
+            labelDiv.style.whiteSpace = 'initial';
+            labelDiv.style.overflowWrap = 'break-word';
+            labelDiv.style.textAlign = 'center';
+            labelDiv.style.fontSize = `${widthFactor>5? widthFactor*3.5 : widthFactor*5}`;
+            labelDiv.style.transform = `scale(${widthFactor})`;
+            labelDiv.style.maxWidth = `${widthFactor*100}px`;
+            labelDiv.textContent = label;
+
+            const textLabel = new CSS2DObject(labelDiv);
+            
+            textLabel.position.set(x+0.5, y+0.5,z);
+            scene.add(textLabel);
+            return textLabel;
+        }
+
+
+        // Function to create a server box with vents and lamp
+        function createServerBox(x, y, z, label, lampAlwaysGreen) {
+            const boxGroup = new THREE.Group();
+
+
+            // Outer box (gray)
+            const boxWidth = 1.5;
+            const outerGeometry = new THREE.BoxGeometry(boxWidth, 1, 1);
+            const outerMaterial = new THREE.MeshBasicMaterial({ color: 0x666666 });
+            const outerBox = new THREE.Mesh(outerGeometry, outerMaterial);
+
+            // On-lamp
+            const lampGeometry = new THREE.BoxGeometry(0.3, 0.1, 0.01);
+            const lampColor = lampAlwaysGreen ? 0x00ff00 : 0x003300;
+            const lampMaterial = new THREE.MeshBasicMaterial({ color: lampColor });
+            const lamp = new THREE.Mesh(lampGeometry, lampMaterial);
+            lamp.position.set(0, -0.4, 0.51);  // Slightly outside the front face
+
+            // Vent lines
+            const ventGroup = new THREE.Group();
+            const ventMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            for (let i = -0.6; i <= 0.6; i += 0.2) {
+                const ventGeometry = new THREE.BoxGeometry(0.05, 0.8, 0.01);
+                const vent = new THREE.Mesh(ventGeometry, ventMaterial);
+                vent.position.set(i, 0, 0.51);
+                ventGroup.add(vent);
+            }
+
+            boxGroup.add(outerBox);
+            boxGroup.add(ventGroup);
+            boxGroup.add(lamp);
+            boxGroup.position.set(x, y, z);
+            scene.add(boxGroup);
+
+            // Add label centered and closer to the server box
+            const widthFactor = label === "BMC" ? 1.5 : 5.0;  // Width factor for normal labels
+            createTextSprite(label, x, y + 0.85, z, widthFactor);  // Centered and proportional text
+
+            return { boxGroup, lamp };
+        }
+
+        // function to create DHCP server from MAAS
+        function createMAASDHCPServer(x,y,z,label,lightGreen,length) {
+           
+            const boxGroup = new THREE.Group();
+            
+            // Outer box (gray)
+            const boxWidth = 1.5;
+            const outerGeometry = new THREE.BoxGeometry(boxWidth, 1, 1);
+            const outerMaterial = new THREE.MeshBasicMaterial({ color: 0xCC5500 });
+            const outerBox = new THREE.Mesh(outerGeometry, outerMaterial);
+
+            // On-lamp
+            const lampGeometry = new THREE.CircleGeometry(0.15, 32)
+            const lampColor = lightGreen ? 0x00ff00 : 0x003300;
+            const lampMaterial = new THREE.MeshBasicMaterial({ color: lampColor });
+            const lamp = new THREE.Mesh(lampGeometry, lampMaterial);
+            lamp.position.set(0.6, -0.3, 0.51);  // Slightly outside the front face
+
+            //add text
+            createSmallText(label,x,y,z,length);
+
+            boxGroup.add(outerBox);
+            boxGroup.add(lamp);
+            boxGroup.position.set(x,y,z);
+            scene.add(boxGroup);
+
+            return{ boxGroup,lamp };
+
+        }
+        
+        // Function Wire with a label
+        function createWireGroup(x, y, z, label,wireLength){
+
+            const wireGroup = new THREE.Group();
+
+            //Create Wire
+            const wireGeometry = new THREE.CylinderGeometry(0.05,0.05,5.6);
+            const wireMaterial = new THREE.MeshBasicMaterial({ color:0x444444});
+            const wire = new THREE.Mesh(wireGeometry, wireMaterial);
+            wire.rotation.z = Math.PI/2;
+            wire.position.set(x,y,z);
+            wireGroup.add(wire);
+
+            //add text
+            const wireLabel = createSmallText(label,x,y,z,wireLength);
+            wireGroup.add(wireLabel);
+
+            scene.add(wireGroup);
+            return { wireGroup, wireLabel };
+        }
+
+        //Create Lshape wire
+        function createLShapeWire( midX, midY, midZ, endX, endY, endZ) {
+            const wireGroup = new THREE.Group(); 
+
+            //Define L-shape path using 2 points 
+            const verticalLine = new THREE.LineCurve3(
+            new THREE.Vector3(1,0,0), 
+            new THREE.Vector3(midX, midY, midZ) // Vertical part
+            );
+
+            //Horizontal line
+            const horizontalLine = new THREE.LineCurve3(
+             new THREE.Vector3(midX, midY, midZ),
+             new THREE.Vector3(endX,endY,endZ)
+            );
+
+            // Combine both segments into a `CurvePath` (sharp L-shape)
+            const path = new THREE.CurvePath();
+            path.add(verticalLine);
+            path.add(horizontalLine);
+
+            // Create wire to follow the line
+            const wireGeometry = new THREE.TubeGeometry(path, 35, 0.05, 8, false); // 0.1 = thickness
+            const wireMaterial = new THREE.MeshBasicMaterial({ color: 0x444444 });
+            const wire = new THREE.Mesh(wireGeometry, wireMaterial);
+            
+            wireGroup.add(wire);
+            scene.add(wireGroup);
+            return { wireGroup };
+        }
+
+        // Pulse (sphere representing data transfer)
+        const pulseGeometry = new THREE.SphereGeometry(0.15, 32, 32);
+        const pulseMaterial = new THREE.MeshBasicMaterial({ color: 0xFFCC00 });
+        const pulse = new THREE.Mesh(pulseGeometry, pulseMaterial);
+        pulse.position.set(-3, 0, 0);  // Start at MAAS
+        scene.add(pulse);
+
+        camera.position.z = 8;        
+
+        // Pulse for LWire
+        const pulseGeometryL = new THREE.SphereGeometry(0.15,32,32);
+        const pulseMaterialL = new THREE.MeshBasicMaterial({ color: 0xFFCC00 });
+        const pulseLWire = new THREE.Mesh(pulseGeometryL,pulseMaterialL);
+        pulseLWire.position.set(0,0,0);//start in the middle of the wire
+        scene.add(pulseLWire);
+        pulseLWire.visible = false; // hide it by default
+        
+        //Adding everything in the scene
+        const maasServer = createServerBox(-3, 0, 0, "MAAS", true);  // MAAS always green
+        const machineServer = createServerBox(3, 0, 0, "Machine", false);  // Machine starts off
+        const DHCPServer = createMAASDHCPServer(-3,-2.5,0, "MAAS-provided DHCP server", false, 3);
+        const maasWire = createWireGroup(-0.5,0,0,"Machine boradcasts DHCP Discover",5.6);
+        const LWire = createLShapeWire(1, -2.5, 0, -3.5, -2.5, 0);
+
+        // Function to update the pulse position and status lights
+        let machineGreen = false;
+        let MAASDHCPGreen = false;
+        
+        function updatePulsePosition(value) {
+            const startX = -3;
+            const endX = 2.1;
+            const newX = startX + (value / 100) * (endX - startX);
+            pulse.position.x = newX;
+
+            const startY = 2;
+            const endY = -2;
+            const newLY = startY + (100/value) * (endY); 
+            pulseLWire.position.y = newLY;
+
+            //Pulse update
+            switch(true){
+                case (newX < -1): //pulse starts
+                    //check if pulse is green and keep it green on the way back
+                    if(!machineGreen){
+                        machineServer.lamp.material.color.setHex(0x000000); //lamp off
+                    }
+                    pulseLWire.position.y=-2.5;
+                    pulseLWire.position.x=newX;
+                    
+                    if(newX < -1 && machineGreen && !MAASDHCPGreen){
+                        setTimeout(() =>{
+                            DHCPServer.lamp.material.color.setHex(0x00ff00);
+                        },1000);
+                        MAASDHCPGreen = true;
+                    }
+                    
+                    break;
+                case (newX >= 1):
+                    //maasWire.wireLabel.element.textContent = "DHCP returns IP offer";
+                    
+                    //when the pulse reaches the server turn on lamp
+                    machineServer.lamp.material.color.setHex(0x00ff00); //lamp on
+                    machineGreen = true;
+                    break;
+                case (newX <= 1 && machineGreen): 
+                    if(newX <=1 && newX >0){
+                        pulseLWire.visible=true;
+                        pulseLWire.position.x = 1;
+                        pulseLWire.position.y=newLY;
+                    }
+                    if(newX <= 0){
+                        pulseLWire.position.y = -2.5;
+                        pulseLWire.position.x = newX;
+                    }
+                    console.log("value = ",value);
+                    console.log("newLY =", newLY);
+                    console.log("newX =", newX);
+                    break;
+                default: {
+                    machineGreen=false;
+                    MAASDHCPGreen = false;
+                }
+            }
+
+            
+        }
+
+        //Refresh function
+        function refreshAnimation(){
+            document.getElementById("slider").value=0;
+            pulse.position.set(-3,0,0);
+            pulseLWire.position.set(0,-2.5,0);
+            pulseLWire.visible = false;
+
+            machineServer.lamp.material.color.setHex(0x003300);
+            DHCPServer.lamp.material.color.setHex(0x003300);
+
+            machineGreen = false;
+            MAASDHCPGreen = false;
+        }
+        document.getElementById("refreshButton").addEventListener("click",refreshAnimation);
+
+    
+        // Slider listener
+        const slider = document.getElementById('slider');
+        slider.addEventListener('input', (event) => {
+            updatePulsePosition(event.target.value);
+        });
+
+        // Render loop
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+            cssRenderer.render(scene,camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            cssRenderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        });
+
+    </script>
+</body>
+</html>
+

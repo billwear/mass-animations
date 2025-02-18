@@ -1,0 +1,42 @@
+body { margin: 0; }
+canvas {
+display: block;
+}
+.slider-container {
+    position: absolute;
+    bottom: 200px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 10%;
+}
+
+#slider {
+    flex-grow: 1; /* allow slider to expand */
+    max-width: 80%;;
+}
+
+
+#refreshButton {
+    background-color: #007bff; /* Blue background */
+    color: white; /* White text */
+    border: none;
+    padding: 8px 12px;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+#refreshButton i {
+    font-size: 18px; /* Icon size */
+}
+
+#refreshButton:hover {
+    background-color: #65abf6; /* Darker blue on hover */
+}
