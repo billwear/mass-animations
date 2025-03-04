@@ -272,20 +272,22 @@
             switch(true){
                 case (value <= 1): //pulse starts
                          //check if pulse is green and keep it green unless moving backwards
-                        if(!machineGreen){
+                        if(machineGreen){
                             machineServer.lamp.material.color.setHex(0x000000); //lamp off
+                            machineGreen = false;
                         }
                         pulse.position.x=newX;
-                    
+                        backward=false;
+                        
                     break;
-                case (value >= 33 && value < 50):
-                        if (!machineGreen && value>40){ 
-                            pulse.position.x = newX;
-                        }
-                        if (!machineGreen && value<45 && value>41){
+                case (value >= 33 && value < 51):
+                        // if (machineGreen && value>40){ 
+                        //     pulse.position.x = newX;
+                        // }
+                        if (!machineGreen && value<49){
                             machineServer.lamp.material.color.setHex(0x00ff00); //lamp on
                             machineGreen = true;
-                            pulse.position.x= newX;
+                            //pulse.position.x= newX;
                         }
                         if (backward) {
                             //if the pulse moving backwards turn off everything.
@@ -294,9 +296,10 @@
                             DHCPServer.lamp.material.color.setHex(0x000000); //lamp off
                             MAASDHCPGreen = false;
                         }
-                    
+                        
+                        pulse.position.x= newX;
                         pulse.position.y=0;
-             
+                        
                     break;
                 case (value>=50 && value <= 80):
                 //Moving the along the L-wire
@@ -304,6 +307,7 @@
                         MAASDHCPGreen = false;
                         pulse.position.x = 1;
                         pulse.position.y=newLY;
+                        
                     break;
                 case(value >= 81 && value < 90): 
                 //Pulse moving on the lower wire
@@ -315,8 +319,9 @@
                             DHCPServer.lamp.material.color.setHex(0x00ff00); //lamp on
                              },800);
                             MAASDHCPGreen = true;
+                            console.log("4");
                         }
-                    
+                        
                     break;
                 case(value >= 82 && !MAASDHCPGreen && backward):
                 //pulse moving backwards from DHCPserver
@@ -324,7 +329,7 @@
                         MAASDHCPGreen = false;
                         pulse.position.y=-2.5;
                         pulse.position.x=newX;
-
+                        
                     break;
                 case(MAASDHCPGreen && value < 95):
                 //pulse reaches MAASDHCP
@@ -337,7 +342,7 @@
                             machineServer.lamp.material.color.setHex(0x000000); //lamp off;
                             machineGreen=false;
                         }
-
+                        
                     break;
                 default: {
                     machineGreen=false;
